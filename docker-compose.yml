@@ -1,0 +1,13 @@
+services:
+  job-management-service:
+    build: .
+    container_name: job-management-app
+    ports:
+      - "8083:8083"
+    restart: always
+    environment:
+      # Aquí usas la IP pública o el host que te de Hostinger para MySQL
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST}/${DB_NAME}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=${DB_USER}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASS}
+      - APPLICATION_SECURITY_JWT_SECRET_KEY=${JWT_SECRET_KEY}
