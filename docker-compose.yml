@@ -15,7 +15,7 @@ services:
 
   job-management-service:
     build: .
-    container_name: job-management-
+    container_name: job-management-service
     depends_on:
       - db-job
     restart: always
