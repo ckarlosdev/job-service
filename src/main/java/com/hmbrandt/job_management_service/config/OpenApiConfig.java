@@ -15,6 +15,6 @@ public class OpenApiConfig {
                         .title("Job Management Service API")
                         .version("1.0")
                         .description("API for job management")
-                        .contact(new Contact().name("Carlos").email("ckarlos_perez@hotmail.com")));
+                        .contact(new Contact().name("Carlos Ramirez").email("ckarlos_perez@hotmail.com")));
     }
 }
