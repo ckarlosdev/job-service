@@ -8,6 +8,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_PASS_ROOT}
       MYSQL_USER: ${DB_USER}        # El usuario que usará tu App Spring Boot
       MYSQL_PASSWORD: ${DB_PASS}
+    ports:
+      - "127.0.0.1:3307:3306"
     networks:
       - job-net
     volumes:
