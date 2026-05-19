@@ -1,11 +1,13 @@
-package com.hmbrandt.job_management_service.dto;
+package com.hmbrandt.job_management_service.dto.create;
+
+import com.hmbrandt.job_management_service.dto.OrderSignatureResponseDto;
+import com.hmbrandt.job_management_service.dto.OrderTaskResponseDto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
-public record ChangeOrderResponseDTO(
+public record ChangeOrderCreateDto(
         Long id,
         Long jobId,
         Long employeeId,
@@ -13,8 +15,6 @@ public record ChangeOrderResponseDTO(
         Integer orderNumber,
         BigDecimal amount,
         String orderStatus,
-        String createdBy,
-        LocalDateTime createdAt,
         List<OrderTaskResponseDto> tasks,
         List<OrderSignatureResponseDto> signatures
 ) {}
