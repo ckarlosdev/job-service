@@ -2,6 +2,7 @@ package com.hmbrandt.job_management_service.controller;
 
 import com.hmbrandt.job_management_service.dto.ChangeOrderResponseDTO;
 import com.hmbrandt.job_management_service.dto.ChangeOrderUpdateDTO;
+import com.hmbrandt.job_management_service.dto.create.ChangeOrderCreateDto;
 import com.hmbrandt.job_management_service.entity.ChangeOrder;
 import com.hmbrandt.job_management_service.service.ChangeOrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,7 +23,7 @@ public class ChangeOrderController {
     private final ChangeOrderService service;
 
     @PostMapping
-    public ResponseEntity<ChangeOrderResponseDTO> create(@RequestBody ChangeOrder order) {
+    public ResponseEntity<ChangeOrderResponseDTO> create(@RequestBody ChangeOrderCreateDto order) {
         return new ResponseEntity<>(service.save(order), HttpStatus.CREATED);
     }
 
@@ -39,6 +40,11 @@ public class ChangeOrderController {
     @GetMapping("/{id}")
     public ResponseEntity<ChangeOrderResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
+    }
+
+    @GetMapping("/job/{jobId}")
+    public ResponseEntity<List<ChangeOrderResponseDTO>> getByJobId(@PathVariable Long jobId) {
+        return ResponseEntity.ok(service.findByJobId(jobId));
     }
 
     @GetMapping("/all")
