@@ -30,7 +30,7 @@ services:
       - APPLICATION_SECURITY_JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - UPLOAD_DIR=/app/uploads/signatures/
     volumes:
-      - C:/hmbrandt/uploads/signatures/:/app/uploads/signatures/
+      - ~/uploads/signatures:/app/uploads/signatures/
     networks:
       - job-net
 
