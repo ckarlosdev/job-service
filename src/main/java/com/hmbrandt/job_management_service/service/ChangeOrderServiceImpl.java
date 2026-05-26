@@ -9,6 +9,7 @@ import com.hmbrandt.job_management_service.repository.ChangeOrderRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -144,7 +145,15 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
     @Override
     @Transactional
     public ChangeOrderResponseDTO finalizeOrder(Long orderId){
-        String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
+        String currentUser = "SYSTEM_FALLBACK"; // Valor por defecto por si falla
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            currentUser = authentication.getName();
+            System.out.println(">>> USUARIO AUTENTICADO ENCONTRADO: " + currentUser);
+        } else {
+            System.out.println(">>> ALERTA: La petición llegó SIN autenticación o el contexto es NULL");
+        }
 
         ChangeOrder order = repository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("order not found with id: " + orderId));
@@ -163,7 +172,16 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         ChangeOrder order = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order not found with id: " + id));
 
-        String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
+        String currentUser; // Valor por defecto por si falla
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            currentUser = authentication.getName();
+            System.out.println(">>> USUARIO AUTENTICADO ENCONTRADO: " + currentUser);
+        } else {
+            currentUser = "SYSTEM_FALLBACK";
+            System.out.println(">>> ALERTA: La petición llegó SIN autenticación o el contexto es NULL");
+        }
 
         if ("FINALIZED".equals(order.getOrderStatus())) {
             throw new IllegalStateException("Locked documents cannot be updated");
