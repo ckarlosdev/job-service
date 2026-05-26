@@ -26,6 +26,9 @@ target/
 # Archivos de configuración de IDE con secretos
 .idea/
 
+# Docker database volumes
+mysql_data/
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
