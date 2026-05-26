@@ -12,6 +12,8 @@ public interface ChangeOrderService {
 
     ChangeOrderResponseDTO update(Long id, ChangeOrderUpdateDTO dto);
 
+    ChangeOrderResponseDTO finalizeOrder(Long id);
+
     List<ChangeOrderResponseDTO> findAll();
 
     ChangeOrderResponseDTO findById(Long id);

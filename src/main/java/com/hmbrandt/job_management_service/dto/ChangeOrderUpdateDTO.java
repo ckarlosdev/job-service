@@ -10,7 +10,6 @@ public record ChangeOrderUpdateDTO(
         Integer orderNumber,
         BigDecimal amount,
         String orderStatus,
-        String updatedBy,
         List<OrderTaskResponseDto>tasks,
-        List<OrderSignatureResponseDto> signatures
+        List<OrderSignatureRequestDto> signatures
 ) {}

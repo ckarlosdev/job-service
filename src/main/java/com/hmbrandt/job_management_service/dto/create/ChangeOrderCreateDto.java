@@ -1,5 +1,6 @@
 package com.hmbrandt.job_management_service.dto.create;
 
+import com.hmbrandt.job_management_service.dto.OrderSignatureRequestDto;
 import com.hmbrandt.job_management_service.dto.OrderSignatureResponseDto;
 import com.hmbrandt.job_management_service.dto.OrderTaskResponseDto;
 
@@ -16,5 +17,5 @@ public record ChangeOrderCreateDto(
         BigDecimal amount,
         String orderStatus,
         List<OrderTaskResponseDto> tasks,
-        List<OrderSignatureResponseDto> signatures
+        List<OrderSignatureRequestDto> signatures
 ) {}

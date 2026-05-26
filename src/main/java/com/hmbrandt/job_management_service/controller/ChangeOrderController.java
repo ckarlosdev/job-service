@@ -37,6 +37,12 @@ public class ChangeOrderController {
         return ResponseEntity.ok(updatedOrder);
     }
 
+    @PutMapping("/{id}/finalize")
+    public ResponseEntity<ChangeOrderResponseDTO> finalizeOrder(@PathVariable Long id) {
+        ChangeOrderResponseDTO response = service.finalizeOrder(id);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ChangeOrderResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
