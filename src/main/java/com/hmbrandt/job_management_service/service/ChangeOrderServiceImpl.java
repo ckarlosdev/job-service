@@ -220,11 +220,11 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
 
             dto.tasks().forEach(taskDto -> {
 
-
                 if (taskDto.id() == null) {
                     OrderTask newTaskEntity = mapTaskToEntity(taskDto);
                     newTaskEntity.setChangeOrder(order);
                     newTaskEntity.setCreatedBy(currentUser);
+                    newTaskEntity.setUpdatedBy(currentUser);
                     order.getTasks().add(newTaskEntity);
                 } else {
                     OrderTask taskToUpdate = order.getTasks().stream()
