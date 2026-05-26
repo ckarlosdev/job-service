@@ -8,13 +8,23 @@ import com.hmbrandt.job_management_service.exception.ResourceNotFoundException;
 import com.hmbrandt.job_management_service.repository.ChangeOrderRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -106,12 +116,18 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
             changeOrder.setTasks(tasks);
         }
 
-        // 4. Mapear las Firmas (Signatures)
         if (dto.signatures() != null) {
             List<OrderSignature> signatures = dto.signatures().stream().map(sigDto -> {
                 OrderSignature signature = new OrderSignature();
                 signature.setSignatureRole(sigDto.signatureRole());
-                signature.setFilePath(sigDto.filePath());
+
+                // 1. Tomamos el Base64 de 'signatureData', lo guardamos en el disco del VPS
+                // y obtenemos la ruta final del archivo físico.
+                String storedPath = saveSignatureToDisk(sigDto.signatureData());
+
+                // 2. Guardamos la ruta física en la base de datos
+                signature.setFilePath(storedPath);
+
                 signature.setChangeOrder(changeOrder);
                 signature.setCreatedBy(currentUser);
                 return signature;
@@ -125,7 +141,20 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         return mapToDto(savedOrder);
     }
 
+    @Override
+    @Transactional
+    public ChangeOrderResponseDTO finalizeOrder(Long orderId){
+        String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        ChangeOrder order = repository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("order not found with id: " + orderId));
+
+        order.setOrderStatus("FINALIZED");
+        order.setUpdatedBy(currentUser);
+
+        repository.save(order);
+        return mapToDto(order);
+    }
 
     @Override
     @Transactional
@@ -134,7 +163,9 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         ChangeOrder order = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order not found with id: " + id));
 
-        if ("SIGNED".equals(order.getOrderStatus()) || "EXECUTED".equals(order.getOrderStatus())) {
+        String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        if ("FINALIZED".equals(order.getOrderStatus())) {
             throw new IllegalStateException("Locked documents cannot be updated");
         }
 
@@ -143,7 +174,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         order.setOrderNumber(dto.orderNumber());
         order.setAmount(dto.amount());
         order.setOrderStatus(dto.orderStatus());
-        order.setUpdatedBy(dto.updatedBy());
+        order.setUpdatedBy(currentUser);
         order.setUpdatedAt(LocalDateTime.now());
 
         if (dto.tasks() != null) {
@@ -153,7 +184,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
 
                 if (!updateTask) {
                     existingTask.setDeletedAt(LocalDateTime.now());
-                    existingTask.setUpdatedBy(dto.updatedBy());
+                    existingTask.setUpdatedBy(currentUser);
 
                     if (existingTask.getEquipments() != null) {
                         existingTask.getEquipments().forEach(eq -> eq.setDeletedAt(LocalDateTime.now()));
@@ -175,7 +206,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 if (taskDto.id() == null) {
                     OrderTask newTaskEntity = mapTaskToEntity(taskDto);
                     newTaskEntity.setChangeOrder(order);
-                    newTaskEntity.setCreatedBy(dto.updatedBy());
+                    newTaskEntity.setCreatedBy(currentUser);
                     order.getTasks().add(newTaskEntity);
                 } else {
                     OrderTask taskToUpdate = order.getTasks().stream()
@@ -194,14 +225,14 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     taskToUpdate.setToolComments(taskDto.toolComments());
                     taskToUpdate.setDumpsterComments(taskDto.dumpsterComments());
 
-                    taskToUpdate.setUpdatedBy(dto.updatedBy());
+                    taskToUpdate.setUpdatedBy(currentUser);
                     taskToUpdate.setUpdatedAt(LocalDateTime.now());
 
                     if (taskDto.equipments() != null) {
                         taskToUpdate.getEquipments().clear(); // Limpia los viejos en memoria
                         taskDto.equipments().forEach(eqDto -> {
-                            TaskEquipment eqEntity = mapEquipmentToEntity(eqDto);
-                            eqEntity.setOrderTask(taskToUpdate); // Plumbing
+                            TaskEquipment eqEntity = mapEquipmentToEntity(eqDto, currentUser);
+                            eqEntity.setOrderTask(taskToUpdate);
                             taskToUpdate.getEquipments().add(eqEntity);
                         });
                     }
@@ -210,7 +241,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     if (taskDto.tools() != null) {
                         taskToUpdate.getTools().clear();
                         taskDto.tools().forEach(toolDto -> {
-                            TaskTool toolEntity = mapToolToEntity(toolDto);
+                            TaskTool toolEntity = mapToolToEntity(toolDto,currentUser);
                             toolEntity.setOrderTask(taskToUpdate);
                             taskToUpdate.getTools().add(toolEntity);
                         });
@@ -220,7 +251,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     if (taskDto.dumpsters() != null) {
                         taskToUpdate.getDumpsters().clear();
                         taskDto.dumpsters().forEach(dumpDto -> {
-                            TaskDumpster dumpEntity = mapDumpsterToEntity(dumpDto);
+                            TaskDumpster dumpEntity = mapDumpsterToEntity(dumpDto, currentUser);
                             dumpEntity.setOrderTask(taskToUpdate);
                             taskToUpdate.getDumpsters().add(dumpEntity);
                         });
@@ -229,6 +260,36 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
             });
 
         }
+
+        // ==========================================
+        // NUEVA SECCIÓN: MANEJO DE FIRMAS EN EL UPDATE
+        // ==========================================
+        if (dto.signatures() != null) {
+            // Opción recomendada: Limpiar firmas viejas para evitar duplicados o huérfanas
+            if (order.getSignatures() != null) {
+                order.getSignatures().clear();
+            } else {
+                order.setSignatures(new ArrayList<>());
+            }
+
+            List<OrderSignature> newSignatures = dto.signatures().stream().map(sigDto -> {
+                OrderSignature signature = new OrderSignature();
+                signature.setSignatureRole(sigDto.signatureRole());
+
+                // 1. Guardamos el Base64 que viene en el UpdateDTO al disco del VPS
+                String storedPath = saveSignatureToDisk(sigDto.signatureData());
+
+                // 2. Seteamos la ruta física del archivo
+                signature.setFilePath(storedPath);
+                signature.setChangeOrder(order);
+                signature.setCreatedBy(currentUser);
+                return signature;
+            }).toList();
+
+            // 3. Asignamos las nuevas firmas procesadas a la orden
+            order.getSignatures().addAll(newSignatures);
+        }
+        // ==========================================
 
         ChangeOrder savedOrder = repository.save(order);
         return mapToDto(savedOrder);
@@ -267,28 +328,78 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 .toList();
     }
 
-    private TaskEquipment mapEquipmentToEntity(TaskEquipmentResponseDto dto){
+    @Value("${application.upload.dir}")
+    private String uploadDir;
+
+    private String saveSignatureToDisk(String base64Image) {
+        try {
+            // 1. Limpiar el prefijo de Base64 si React lo envía completo (data:image/png;base64,...)
+            String cleanBase64 = base64Image;
+            if (base64Image.contains(",")) {
+                cleanBase64 = base64Image.split(",")[1];
+            }
+
+            // 2. Decodificar los bytes de la imagen
+            byte[] imageBytes = Base64.getDecoder().decode(cleanBase64);
+
+            // 3. Definir la ruta del VPS (¡Usa variables de configuración en tu application.yml!)
+            // Ejemplo local windows/mac o absoluto en linux del VPS: "/var/www/uploads/signatures/"
+//            String uploadDir = "/var/www/uploads/signatures/";
+//            String uploadDir = "C:/hmbrandt/uploads/signatures/";
+//
+//            File folder = new File(uploadDir);
+//            if (!folder.exists()) {
+//                folder.mkdirs(); // Crea la carpeta en el VPS si no existe
+//            }
+            Path directoryPath = Paths.get(uploadDir);
+            if (!Files.exists(directoryPath)) {
+                Files.createDirectories(directoryPath); // Crea las carpetas necesarias en C:/ o /var/
+            }
+
+            // 4. Crear un nombre de archivo único para evitar duplicados
+            String fileName = UUID.randomUUID().toString() + ".png";
+            Path targetFilePath = directoryPath.resolve(fileName);
+//            File fileToSave = new File(folder, fileName);
+
+            // 5. Escribir los bytes en el archivo físico
+//            try (FileOutputStream fos = new FileOutputStream(fileToSave)) {
+//                fos.write(imageBytes);
+//            }
+            Files.write(targetFilePath, imageBytes);
+
+            // 6. Retornar el path relativo o el nombre que guardarás en la BD
+            return "/uploads/signatures/" + fileName;
+
+        } catch (IOException | IllegalArgumentException e) {
+            throw new RuntimeException("Issue savin signature in file system: " + e.getMessage());
+        }
+    }
+
+    private TaskEquipment mapEquipmentToEntity(TaskEquipmentResponseDto dto, String currentUser){
         return TaskEquipment.builder()
                 .id(dto.id())
                 .equipmentName(dto.equipmentName())
                 .quantity(dto.quantity())
+                .createdBy(currentUser)
                 .build();
     }
 
-    private TaskTool mapToolToEntity(TaskToolResponseDto dto){
+    private TaskTool mapToolToEntity(TaskToolResponseDto dto, String currentUser){
         return TaskTool.builder()
                 .id(dto.id())
                 .toolName(dto.toolName())
                 .quantity(dto.quantity())
+                .createdBy(currentUser)
                 .build();
     }
 
-    private TaskDumpster mapDumpsterToEntity(TaskDumpsterResponseDto dto){
+    private TaskDumpster mapDumpsterToEntity(TaskDumpsterResponseDto dto, String currentUser){
         return TaskDumpster.builder()
                 .id(dto.id())
                 .materialType(dto.materialType())
                 .dumpsterSize(dto.dumpsterSize())
                 .quantity(dto.quantity())
+                .createdBy(currentUser)
                 .build();
     }
 
@@ -308,7 +419,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         if(dto.equipments() != null){
             List<TaskEquipment> equipmentEntities = dto.equipments().stream()
                     .map(eqDto -> {
-                        TaskEquipment eq = mapEquipmentToEntity(eqDto);
+                        TaskEquipment eq = mapEquipmentToEntity(eqDto, currentUser);
                         eq.setOrderTask(task);
                         return eq;
                     })
@@ -319,7 +430,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         if(dto.tools() != null){
             List<TaskTool> toolEntities = dto.tools().stream()
                     .map(dtoItem -> {
-                        TaskTool item =  mapToolToEntity(dtoItem);
+                        TaskTool item =  mapToolToEntity(dtoItem, currentUser);
                         item.setOrderTask(task);
                         return item;
                     })
@@ -330,7 +441,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         if(dto.dumpsters() != null){
             List<TaskDumpster> dumpsterEntities = dto.dumpsters().stream()
                     .map(dtoItem -> {
-                        TaskDumpster item =  mapDumpsterToEntity(dtoItem);
+                        TaskDumpster item =  mapDumpsterToEntity(dtoItem, currentUser);
                         item.setOrderTask(task);
                         return item;
                     })

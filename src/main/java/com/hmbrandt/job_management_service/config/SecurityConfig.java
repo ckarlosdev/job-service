@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -40,6 +41,7 @@ public class SecurityConfig {
                                 "/error/**",          // <--- AGREGA ESTA (Para evitar bloqueos en redirecciones de error)
                                 "/.well-known/**"
                         ).permitAll()
+                        .requestMatchers("/uploads/signatures/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -48,6 +50,15 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        // Le dice a Spring Security: "Ni te metas con estas rutas, déjalas pasar libremente sin filtros"
+        return (web) -> web.ignoring().requestMatchers(
+                "/uploads/signatures/**",
+                "/favicon.ico"
+        );
     }
 
     @Bean
