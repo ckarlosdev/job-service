@@ -40,12 +40,6 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         // 1. Obtener el usuario actual para la auditoría interna
         String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        System.out.println("DEBUG SECURITY - El nombre devuelto es: " +
-                SecurityContextHolder.getContext().getAuthentication().getName());
-
-        System.out.println("DEBUG SECURITY - El nombre devuelto (2) es: " +
-                currentUser);
-
         // 2. Crear la entidad padre principal (El ID se ignora porque JPA lo generará)
         ChangeOrder changeOrder = new ChangeOrder();
         changeOrder.setJobId(dto.jobId());
@@ -156,16 +150,10 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated()) {
             currentUser = authentication.getName();
-            System.out.println(">>> USUARIO AUTENTICADO ENCONTRADO: " + currentUser);
         } else {
+            currentUser = "SYSTEM_FALLBACK";
             System.out.println(">>> ALERTA: La petición llegó SIN autenticación o el contexto es NULL");
         }
-
-        System.out.println("DEBUG SECURITY - El nombre devuelto es: " +
-                SecurityContextHolder.getContext().getAuthentication().getName());
-
-        System.out.println("DEBUG SECURITY - El nombre devuelto (2) es: " +
-                currentUser);
 
         ChangeOrder order = repository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("order not found with id: " + orderId));
@@ -562,11 +550,27 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         );
     }
 
+    @Value("${application.base-url}") // http://localhost:8080 en PC, https://api-gateway-px44.onrender.com en VPS
+    private String baseUrl;
+
     private OrderSignatureResponseDto mapSignatureToDto(OrderSignature entity){
+        String filePath = entity.getFilePath();
+        String fullUrl = baseUrl;
+
+        if (filePath != null) {
+            if (filePath.startsWith("/") && baseUrl.endsWith("/")) {
+                fullUrl = baseUrl + filePath.substring(1);
+            } else if (!filePath.startsWith("/") && !baseUrl.endsWith("/")) {
+                fullUrl = baseUrl + "/" + filePath;
+            } else {
+                fullUrl = baseUrl + filePath;
+            }
+        }
+
         return new OrderSignatureResponseDto(
                 entity.getId(),
                 entity.getSignatureRole(),
-                entity.getFilePath()
+                fullUrl // <-- Ahora devolverá la URL pública real
         );
     }
 
