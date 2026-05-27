@@ -29,6 +29,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${DB_PASS}
       - APPLICATION_SECURITY_JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - UPLOAD_DIR=/app/uploads/signatures/
+      - APP_BASE_URL=https://api-gateway-px44.onrender.com
     volumes:
       - ~/uploads/signatures:/app/uploads/signatures/
     networks:
