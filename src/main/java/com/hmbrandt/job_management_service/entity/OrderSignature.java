@@ -43,4 +43,7 @@ public class OrderSignature {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Column(name = "signature_name")
+    private String signatureName;
 }
