@@ -43,6 +43,12 @@ public class ChangeOrderController {
         return ResponseEntity.ok(response);
     }
 
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<ChangeOrderResponseDTO> approveOrder(@PathVariable Long id) {
+        ChangeOrderResponseDTO response = service.approveOrder(id);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ChangeOrderResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));

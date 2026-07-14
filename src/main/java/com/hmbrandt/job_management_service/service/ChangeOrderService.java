@@ -14,6 +14,8 @@ public interface ChangeOrderService {
 
     ChangeOrderResponseDTO finalizeOrder(Long id);
 
+    ChangeOrderResponseDTO approveOrder(Long id);
+
     List<ChangeOrderResponseDTO> findAll();
 
     ChangeOrderResponseDTO findById(Long id);

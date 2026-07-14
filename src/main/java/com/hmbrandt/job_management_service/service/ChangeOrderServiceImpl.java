@@ -14,18 +14,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -118,23 +112,55 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         }
 
         if (dto.signatures() != null) {
-            List<OrderSignature> signatures = dto.signatures().stream().map(sigDto -> {
-                OrderSignature signature = new OrderSignature();
-                signature.setSignatureRole(sigDto.signatureRole());
+            // 1. Obtenemos la lista actual de firmas de la orden (inicializándola si es null)
+            List<OrderSignature> existingSignatures = changeOrder.getSignatures();
+            if (existingSignatures == null) {
+                existingSignatures = new ArrayList<>();
+                changeOrder.setSignatures(existingSignatures);
+            }
 
-                // 1. Tomamos el Base64 de 'signatureData', lo guardamos en el disco del VPS
-                // y obtenemos la ruta final del archivo físico.
-                String storedPath = saveSignatureToDisk(sigDto.signatureData());
+            for (var sigDto : dto.signatures()) {
+                // Buscamos si ya existe una firma guardada para este rol específico
+                Optional<OrderSignature> existingSigOpt = existingSignatures.stream()
+                        .filter(sig -> sig.getSignatureRole().equals(sigDto.signatureRole()))
+                        .findFirst();
 
-                // 2. Guardamos la ruta física en la base de datos
-                signature.setFilePath(storedPath);
+                if (existingSigOpt.isPresent()) {
+                    // --- CASO A: LA FIRMA YA EXISTÍA ---
+                    OrderSignature existingSig = existingSigOpt.get();
 
-                signature.setChangeOrder(changeOrder);
-                signature.setCreatedBy(currentUser);
-                return signature;
-            }).toList();
+                    // Solo si nos mandan una firma nueva en Base64 (signatureData no es null/vacío), la actualizamos
+                    if (sigDto.signatureData() != null && !sigDto.signatureData().isBlank()) {
+                        // Opcional: Aquí podrías eliminar el archivo físico anterior del disco del VPS si lo deseas
+                        // deleteFileFromDisk(existingSig.getFilePath());
 
-            changeOrder.setSignatures(signatures);
+                        String storedPath = saveSignatureToDisk(sigDto.signatureData());
+                        existingSig.setFilePath(storedPath);
+                        existingSig.setSignatureName(sigDto.signatureName());
+                        existingSig.setCreatedBy(currentUser); // Opcional actualizar quién la modificó
+                    }
+                    // Si viene en el DTO pero sin signatureData (ej. solo pasamos el filePath existente desde el front),
+                    // no hacemos nada para no pisarla con un archivo vacío.
+
+                } else {
+                    // --- CASO B: ES UNA FIRMA NUEVA ---
+                    // Solo creamos la entidad si realmente nos están mandando datos para firmar
+                    if (sigDto.signatureData() != null && !sigDto.signatureData().isBlank()) {
+                        OrderSignature newSignature = new OrderSignature();
+                        newSignature.setSignatureRole(sigDto.signatureRole());
+                        newSignature.setSignatureName(sigDto.signatureName());
+
+                        String storedPath = saveSignatureToDisk(sigDto.signatureData());
+                        newSignature.setFilePath(storedPath);
+
+                        newSignature.setChangeOrder(changeOrder);
+                        newSignature.setCreatedBy(currentUser);
+
+                        // Agregamos a la lista existente sin romper la referencia de Hibernate
+                        existingSignatures.add(newSignature);
+                    }
+                }
+            }
         }
 
         ChangeOrder savedOrder = repository.save(changeOrder);
@@ -159,6 +185,33 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("order not found with id: " + orderId));
 
         order.setOrderStatus("FINALIZED");
+        order.setUpdatedBy(currentUser);
+
+        repository.save(order);
+        return mapToDto(order);
+    }
+
+    @Override
+    @Transactional
+    public ChangeOrderResponseDTO approveOrder(Long orderId) {
+        String currentUser = "SYSTEM_FALLBACK";
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            currentUser = authentication.getName();
+        } else {
+            System.out.println(">>> ALERTA: La petición de aprobación llegó sin autenticación");
+        }
+
+        ChangeOrder order = repository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        // Opcional: Regla de negocio para evitar aprobaciones si no está en DRAFT
+        if (!"DRAFT".equals(order.getOrderStatus())) {
+            throw new IllegalStateException("Only DRAFT orders can be approved.");
+        }
+
+        order.setOrderStatus("APPROVED");
         order.setUpdatedBy(currentUser);
 
         repository.save(order);
@@ -293,6 +346,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
             List<OrderSignature> newSignatures = dto.signatures().stream().map(sigDto -> {
                 OrderSignature signature = new OrderSignature();
                 signature.setSignatureRole(sigDto.signatureRole());
+                signature.setSignatureName(sigDto.signatureName());
 
                 // 1. Guardamos el Base64 que viene en el UpdateDTO al disco del VPS
                 String storedPath = saveSignatureToDisk(sigDto.signatureData());
@@ -318,7 +372,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
     public ChangeOrderResponseDTO findById(Long id) {
         return repository.findById(id)
                 .map(this::mapToDto) // Uso de Method Reference para limpiar el código
-                .orElseThrow(() -> new EntityNotFoundException("Order not fount with id: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Order not fount with id xf001: " + id));
     }
 
     @Override
@@ -570,7 +624,8 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         return new OrderSignatureResponseDto(
                 entity.getId(),
                 entity.getSignatureRole(),
-                fullUrl // <-- Ahora devolverá la URL pública real
+                fullUrl,
+                entity.getSignatureName()
         );
     }
 
