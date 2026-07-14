@@ -42,7 +42,6 @@ public class SecurityConfig {
                                 "/.well-known/**"
                         ).permitAll()
                         .requestMatchers("/uploads/signatures/**").permitAll()
-                        .anyRequest().permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
