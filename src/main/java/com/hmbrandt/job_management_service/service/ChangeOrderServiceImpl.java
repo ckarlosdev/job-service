@@ -338,9 +338,13 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         if (dto.signatures() != null) {
             // Opción recomendada: Limpiar firmas viejas para evitar duplicados o huérfanas
             if (order.getSignatures() != null) {
-                order.getSignatures().clear();
-            } else {
-                order.setSignatures(new ArrayList<>());
+                LocalDateTime now = LocalDateTime.now();
+
+                order.getSignatures().forEach(signature -> {
+                    if (signature.getDeletedAt() == null) {
+                        signature.setDeletedAt(now);
+                    }
+                });
             }
 
             List<OrderSignature> newSignatures = dto.signatures().stream().map(sigDto -> {
