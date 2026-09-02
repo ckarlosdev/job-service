@@ -2,6 +2,8 @@ package com.hmbrandt.job_management_service.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -16,6 +18,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @EntityListeners(AuditingEntityListener.class)
+@SQLDelete(sql = "UPDATE order_signatures SET deleted_at = NOW() WHERE order_signature_id = ?")
+@SQLRestriction("deleted_at IS NULL")
 public class OrderSignature {
 
     @Id
