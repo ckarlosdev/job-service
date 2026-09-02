@@ -34,15 +34,25 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         // 1. Obtener el usuario actual para la auditoría interna
         String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        // 2. Crear la entidad padre principal (El ID se ignora porque JPA lo generará)
-        ChangeOrder changeOrder = new ChangeOrder();
+        // 2. Determinar si estamos actualizando una orden existente o creando una nueva
+        ChangeOrder changeOrder;
+        if (dto.id() != null) {
+            // Si el DTO trae ID, buscamos la orden real existente en la BD
+            changeOrder = repository.findById(dto.id())
+                    .orElseThrow(() -> new EntityNotFoundException("ChangeOrder not found with id: " + dto.id()));
+        } else {
+            // Si no trae ID, es una entidad nueva
+            changeOrder = new ChangeOrder();
+            changeOrder.setCreatedBy(currentUser);
+        }
+
+        // Actualizar campos principales
         changeOrder.setJobId(dto.jobId());
         changeOrder.setEmployeeId(dto.employeeId());
         changeOrder.setOrderDate(dto.orderDate());
         changeOrder.setOrderNumber(dto.orderNumber());
         changeOrder.setAmount(dto.amount());
         changeOrder.setOrderStatus(dto.orderStatus());
-        changeOrder.setCreatedBy(currentUser);
         changeOrder.setUpdatedBy(currentUser);
 
         // 3. Mapear la lista de Tareas si el DTO las incluye
@@ -60,12 +70,10 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 task.setToolComments(taskDto.toolComments());
                 task.setDumpsterComments(taskDto.dumpsterComments());
 
-                // ASIGNACIÓN CLAVE: Enlazamos el hijo con su padre e inyectamos auditoría
                 task.setChangeOrder(changeOrder);
                 task.setCreatedBy(currentUser);
                 task.setUpdatedBy(currentUser);
 
-                // 3a. Mapear Equipos de esta tarea
                 if (taskDto.equipments() != null) {
                     List<TaskEquipment> equipments = taskDto.equipments().stream().map(equipDto -> {
                         TaskEquipment equip = new TaskEquipment();
@@ -78,7 +86,6 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     task.setEquipments(equipments);
                 }
 
-                // 3b. Mapear Herramientas (Tools) de esta tarea
                 if (taskDto.tools() != null) {
                     List<TaskTool> tools = taskDto.tools().stream().map(toolDto -> {
                         TaskTool tool = new TaskTool();
@@ -91,7 +98,6 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     task.setTools(tools);
                 }
 
-                // 3c. Mapear Volquetes (Dumpsters) de esta tarea
                 if (taskDto.dumpsters() != null) {
                     List<TaskDumpster> dumpsters = taskDto.dumpsters().stream().map(dumpDto -> {
                         TaskDumpster dumpster = new TaskDumpster();
@@ -108,11 +114,17 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 return task;
             }).toList();
 
-            changeOrder.setTasks(tasks);
+            // En caso de actualización, limpia y reemplaza la lista de tareas
+            if (changeOrder.getTasks() != null) {
+                changeOrder.getTasks().clear();
+                changeOrder.getTasks().addAll(tasks);
+            } else {
+                changeOrder.setTasks(tasks);
+            }
         }
 
+        // 4. Lógica de firmas con validación segura de Base64
         if (dto.signatures() != null) {
-            // 1. Obtenemos la lista actual de firmas de la orden (inicializándola si es null)
             List<OrderSignature> existingSignatures = changeOrder.getSignatures();
             if (existingSignatures == null) {
                 existingSignatures = new ArrayList<>();
@@ -120,32 +132,43 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
             }
 
             for (var sigDto : dto.signatures()) {
-                // Buscamos si ya existe una firma guardada para este rol específico
                 Optional<OrderSignature> existingSigOpt = existingSignatures.stream()
-                        .filter(sig -> sig.getSignatureRole().equals(sigDto.signatureRole()))
+                        .filter(sig -> Objects.equals(
+                                sig.getSignatureRole(),
+                                sigDto.signatureRole()
+                        ))
                         .findFirst();
 
+                // Verificamos si realmente viene una cadena Base64 válida para guardar
+                String signatureData = sigDto.signatureData();
+
+                boolean hasNewBase64Data =
+                        signatureData != null
+                                && !signatureData.isBlank()
+                                && signatureData.startsWith("data:image/");
+
                 if (existingSigOpt.isPresent()) {
-                    // --- CASO A: LA FIRMA YA EXISTÍA ---
+                    // --- CASO A: LA FIRMA YA EXISTÍA EN LA BD ---
                     OrderSignature existingSig = existingSigOpt.get();
 
-                    // Solo si nos mandan una firma nueva en Base64 (signatureData no es null/vacío), la actualizamos
-                    if (sigDto.signatureData() != null && !sigDto.signatureData().isBlank()) {
-                        // Opcional: Aquí podrías eliminar el archivo físico anterior del disco del VPS si lo deseas
-                        // deleteFileFromDisk(existingSig.getFilePath());
+                    if (hasNewBase64Data) {
+                        String oldPath = existingSig.getFilePath();
 
-                        String storedPath = saveSignatureToDisk(sigDto.signatureData());
-                        existingSig.setFilePath(storedPath);
+                        String newStoredPath =
+                                saveSignatureToDisk(signatureData);
+
+                        existingSig.setFilePath(newStoredPath);
                         existingSig.setSignatureName(sigDto.signatureName());
-                        existingSig.setCreatedBy(currentUser); // Opcional actualizar quién la modificó
+                        existingSig.setCreatedBy(currentUser);
+
+                        // Opcional:
+                        // eliminarOldSignatureFile(oldPath);
                     }
-                    // Si viene en el DTO pero sin signatureData (ej. solo pasamos el filePath existente desde el front),
-                    // no hacemos nada para no pisarla con un archivo vacío.
+                    // Si 'hasNewBase64Data' es false, no se hace nada: se conserva la firma y el filePath existente en la BD.
 
                 } else {
-                    // --- CASO B: ES UNA FIRMA NUEVA ---
-                    // Solo creamos la entidad si realmente nos están mandando datos para firmar
-                    if (sigDto.signatureData() != null && !sigDto.signatureData().isBlank()) {
+                    // --- CASO B: ES UNA FIRMA NUEVA PARA ESTE ROL ---
+                    if (hasNewBase64Data) {
                         OrderSignature newSignature = new OrderSignature();
                         newSignature.setSignatureRole(sigDto.signatureRole());
                         newSignature.setSignatureName(sigDto.signatureName());
@@ -156,7 +179,6 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                         newSignature.setChangeOrder(changeOrder);
                         newSignature.setCreatedBy(currentUser);
 
-                        // Agregamos a la lista existente sin romper la referencia de Hibernate
                         existingSignatures.add(newSignature);
                     }
                 }
@@ -164,7 +186,6 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         }
 
         ChangeOrder savedOrder = repository.save(changeOrder);
-
         return mapToDto(savedOrder);
     }
 
