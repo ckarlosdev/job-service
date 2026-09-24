@@ -40,7 +40,7 @@ application:
 
 services:
   notification:
-    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8088}
+    url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8088}
 
 logging:
   level:
