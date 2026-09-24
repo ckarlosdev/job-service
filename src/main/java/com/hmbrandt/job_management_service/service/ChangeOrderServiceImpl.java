@@ -1,13 +1,17 @@
 package com.hmbrandt.job_management_service.service;
 
 
+import com.hmbrandt.job_management_service.client.NotificationClient;
 import com.hmbrandt.job_management_service.dto.*;
 import com.hmbrandt.job_management_service.dto.create.ChangeOrderCreateDto;
+import com.hmbrandt.job_management_service.dto.notification.JobDataDto;
 import com.hmbrandt.job_management_service.entity.*;
 import com.hmbrandt.job_management_service.exception.ResourceNotFoundException;
 import com.hmbrandt.job_management_service.repository.ChangeOrderRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,6 +31,8 @@ import java.util.stream.Collectors;
 public class ChangeOrderServiceImpl implements ChangeOrderService {
 
     private final ChangeOrderRepository repository;
+    private final NotificationClient notificationClient;
+    private static final Logger log = LoggerFactory.getLogger(ChangeOrderServiceImpl.class);
 
     @Override
     @Transactional
@@ -191,15 +197,14 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
 
     @Override
     @Transactional
-    public ChangeOrderResponseDTO finalizeOrder(Long orderId){
+    public ChangeOrderResponseDTO finalizeOrder(Long orderId, JobDataDto job) {
         String currentUser = "SYSTEM_FALLBACK"; // Valor por defecto por si falla
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated()) {
             currentUser = authentication.getName();
         } else {
-            currentUser = "SYSTEM_FALLBACK";
-            System.out.println(">>> ALERTA: La petición llegó SIN autenticación o el contexto es NULL");
+            log.warn("The request to finalize the order #{} It arrived without authentication. SYSTEM_FALLBACK will be used.", orderId);
         }
 
         ChangeOrder order = repository.findById(orderId)
@@ -209,7 +214,44 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         order.setUpdatedBy(currentUser);
 
         repository.save(order);
+        createNotification(order, currentUser, job);
+
         return mapToDto(order);
+    }
+
+    private void createNotification(ChangeOrder savedReport, String currentUser, JobDataDto job) {
+        String htmlBody = messageFormat(
+                savedReport,
+                currentUser,
+                job
+        );
+
+        String recipients = getNotificationRecipients();
+
+        notificationClient.sendEmailNotification(
+                recipients,
+                "New change order created Job #" + job.number(),
+                htmlBody
+        );
+    }
+
+    private String getNotificationRecipients() {
+        Path path = Paths.get("/app/config/recipients.txt");
+        try {
+            if (Files.exists(path)) {
+                List<String> lines = Files.readAllLines(path);
+                // Filtra líneas vacías o comentarios (#) y las une separadas por coma
+                String recipients = lines.stream()
+                        .map(String::trim)
+                        .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+                        .reduce((a, b) -> a + "," + b)
+                        .orElse("apaddock@hmbrandt.com"); // Fallback si el archivo está vacío
+                return recipients;
+            }
+        } catch (Exception e) {
+            log.error("Error reading the recipient file recipients.txt: {}", e.getMessage());
+        }
+        return "apaddock@hmbrandt.com"; // Fallback por defecto si no existe el archivo
     }
 
     @Override
@@ -333,7 +375,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     if (taskDto.tools() != null) {
                         taskToUpdate.getTools().clear();
                         taskDto.tools().forEach(toolDto -> {
-                            TaskTool toolEntity = mapToolToEntity(toolDto,currentUser);
+                            TaskTool toolEntity = mapToolToEntity(toolDto, currentUser);
                             toolEntity.setOrderTask(taskToUpdate);
                             taskToUpdate.getTools().add(toolEntity);
                         });
@@ -472,7 +514,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         }
     }
 
-    private TaskEquipment mapEquipmentToEntity(TaskEquipmentResponseDto dto, String currentUser){
+    private TaskEquipment mapEquipmentToEntity(TaskEquipmentResponseDto dto, String currentUser) {
         return TaskEquipment.builder()
                 .id(dto.id())
                 .equipmentName(dto.equipmentName())
@@ -481,7 +523,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 .build();
     }
 
-    private TaskTool mapToolToEntity(TaskToolResponseDto dto, String currentUser){
+    private TaskTool mapToolToEntity(TaskToolResponseDto dto, String currentUser) {
         return TaskTool.builder()
                 .id(dto.id())
                 .toolName(dto.toolName())
@@ -490,7 +532,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 .build();
     }
 
-    private TaskDumpster mapDumpsterToEntity(TaskDumpsterResponseDto dto, String currentUser){
+    private TaskDumpster mapDumpsterToEntity(TaskDumpsterResponseDto dto, String currentUser) {
         return TaskDumpster.builder()
                 .id(dto.id())
                 .materialType(dto.materialType())
@@ -513,7 +555,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         task.setOther(dto.other());
         task.setTotalHours(dto.totalHours());
         task.setComments(dto.comments());
-        if(dto.equipments() != null){
+        if (dto.equipments() != null) {
             List<TaskEquipment> equipmentEntities = dto.equipments().stream()
                     .map(eqDto -> {
                         TaskEquipment eq = mapEquipmentToEntity(eqDto, currentUser);
@@ -524,10 +566,10 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
 
             task.setEquipments(equipmentEntities);
         }
-        if(dto.tools() != null){
+        if (dto.tools() != null) {
             List<TaskTool> toolEntities = dto.tools().stream()
                     .map(dtoItem -> {
-                        TaskTool item =  mapToolToEntity(dtoItem, currentUser);
+                        TaskTool item = mapToolToEntity(dtoItem, currentUser);
                         item.setOrderTask(task);
                         return item;
                     })
@@ -535,10 +577,10 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
 
             task.setTools(toolEntities);
         }
-        if(dto.dumpsters() != null){
+        if (dto.dumpsters() != null) {
             List<TaskDumpster> dumpsterEntities = dto.dumpsters().stream()
                     .map(dtoItem -> {
-                        TaskDumpster item =  mapDumpsterToEntity(dtoItem, currentUser);
+                        TaskDumpster item = mapDumpsterToEntity(dtoItem, currentUser);
                         item.setOrderTask(task);
                         return item;
                     })
@@ -575,7 +617,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         );
     }
 
-    private OrderTaskResponseDto mapTaskToDto(OrderTask entity){
+    private OrderTaskResponseDto mapTaskToDto(OrderTask entity) {
         return new OrderTaskResponseDto(
                 entity.getId(),
                 entity.getTaskName(),
@@ -604,7 +646,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         );
     }
 
-    private TaskEquipmentResponseDto mapEquipmentToDto(TaskEquipment entity){
+    private TaskEquipmentResponseDto mapEquipmentToDto(TaskEquipment entity) {
         return new TaskEquipmentResponseDto(
                 entity.getId(),
                 entity.getEquipmentName(),
@@ -612,7 +654,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         );
     }
 
-    private TaskToolResponseDto mapToolToDto(TaskTool entity){
+    private TaskToolResponseDto mapToolToDto(TaskTool entity) {
         return new TaskToolResponseDto(
                 entity.getId(),
                 entity.getToolName(),
@@ -620,7 +662,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         );
     }
 
-    private TaskDumpsterResponseDto mapDumpsterToDto(TaskDumpster entity){
+    private TaskDumpsterResponseDto mapDumpsterToDto(TaskDumpster entity) {
         return new TaskDumpsterResponseDto(
                 entity.getId(),
                 entity.getMaterialType(),
@@ -632,7 +674,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
     @Value("${application.base-url}") // http://localhost:8080 en PC, https://api-gateway-px44.onrender.com en VPS
     private String baseUrl;
 
-    private OrderSignatureResponseDto mapSignatureToDto(OrderSignature entity){
+    private OrderSignatureResponseDto mapSignatureToDto(OrderSignature entity) {
         String filePath = entity.getFilePath();
         String fullUrl = baseUrl;
 
@@ -651,6 +693,74 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                 entity.getSignatureRole(),
                 fullUrl,
                 entity.getSignatureName()
+        );
+    }
+
+    private String messageFormat(ChangeOrder savedReport, String currentUser, JobDataDto job) {
+        return String.format("""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                      <meta charset="utf-8">
+                      <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f4f6f8; margin: 0; padding: 20px; }
+                        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; }
+                        .header { background-color: #1e293b; color: #ffffff; padding: 24px; text-align: left; }
+                        .header h2 { margin: 0; font-size: 20px; font-weight: 600; }
+                        .content { padding: 24px; }
+                        .badge { display: inline-block; background-color: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: 12px; margin-bottom: 16px; }
+                        .info-table { width: 100%%; border-collapse: collapse; margin-top: 12px; }
+                        .info-table td { padding: 10px 0; border-bottom: 1px solid #edf2f7; font-size: 14px; }
+                        .info-table td.label { font-weight: 600; color: #64748b; width: 40%%; }
+                        .info-table td.value { color: #0f172a; text-align: right; }
+                        .footer { background-color: #f8fafc; padding: 16px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #edf2f7; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="container">
+                        <div class="header">
+                          <h2>New Change Order</h2>
+                        </div>
+                        <div class="content">
+                          <span class="badge">Job #%s</span>
+                          <p style="margin-top:0;">A new change order report has been generated in the system.</p>
+                    
+                          <table class="info-table">
+                            <tr>
+                              <td class="label">Report ID</td>
+                              <td class="value">#%d</td>
+                            </tr>
+                            <tr>
+                              <td class="label">Job Number</td>
+                              <td class="value">%s</td>
+                            </tr>
+                            <tr>
+                              <td class="label">Job Name</td>
+                              <td class="value">%s</td>
+                            </tr>
+                            <tr>
+                              <td class="label">Order Date</td>
+                              <td class="value">%s</td>
+                            </tr>
+                            <tr>
+                              <td class="label">Created By</td>
+                              <td class="value">%s</td>
+                            </tr>
+                          </table>
+                        </div>
+                        <div class="footer">
+                          HMBrandt System • Automated Notification
+                        </div>
+                      </div>
+                    </body>
+                    </html>
+                    """,
+                job.number(),          // 1: %s -> Badge
+                savedReport.getId(),   // 2: %d -> Report ID
+                job.number(),          // 3: %s -> Job Number
+                job.name(),            // 4: %s -> Job Name
+                savedReport.getOrderDate(), // 5: %s -> Order Date
+                currentUser            // 6: %s -> Created By
         );
     }
 

@@ -3,6 +3,7 @@ package com.hmbrandt.job_management_service.controller;
 import com.hmbrandt.job_management_service.dto.ChangeOrderResponseDTO;
 import com.hmbrandt.job_management_service.dto.ChangeOrderUpdateDTO;
 import com.hmbrandt.job_management_service.dto.create.ChangeOrderCreateDto;
+import com.hmbrandt.job_management_service.dto.notification.JobDataDto;
 import com.hmbrandt.job_management_service.entity.ChangeOrder;
 import com.hmbrandt.job_management_service.service.ChangeOrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,8 +39,11 @@ public class ChangeOrderController {
     }
 
     @PutMapping("/{id}/finalize")
-    public ResponseEntity<ChangeOrderResponseDTO> finalizeOrder(@PathVariable Long id) {
-        ChangeOrderResponseDTO response = service.finalizeOrder(id);
+    public ResponseEntity<ChangeOrderResponseDTO> finalizeOrder(
+            @PathVariable Long id,
+            @RequestBody JobDataDto job
+    ) {
+        ChangeOrderResponseDTO response = service.finalizeOrder(id, job);
         return ResponseEntity.ok(response);
     }
 

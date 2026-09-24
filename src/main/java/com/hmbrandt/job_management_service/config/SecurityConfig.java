@@ -3,6 +3,7 @@ package com.hmbrandt.job_management_service.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,22 +27,43 @@ public class SecurityConfig {
     @Value("${application.security.jwt.secret-key}")
     private String secretKey;
 
+    // -------------------------------------------------------------
+    // PERFIL LOCAL / DEV: Desactiva la autenticación para todo
+    // -------------------------------------------------------------
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
+    @Profile({"dev", "local"}) // Solo se activa si el perfil activo es "dev" o "local"
+    public SecurityFilterChain devSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults())
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll() // Permite TODO sin autenticar
+                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        return http.build();
+    }
+
+    // -------------------------------------------------------------
+    // PERFIL PRODUCCIÓN: Tu configuración real con JWT
+    // -------------------------------------------------------------
+    @Bean
+    @Profile("!dev & !local") // Se activa cuando NO estamos en dev ni local
+    public SecurityFilterChain productionSecurityFilterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/v3/api-docs/**",
-                                "/api-docs/**",       // <--- AGREGA ESTA (Para /api-docs/swagger-config)
+                                "/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/webjars/**",
-                                "/error/**",          // <--- AGREGA ESTA (Para evitar bloqueos en redirecciones de error)
-                                "/.well-known/**"
+                                "/error/**",
+                                "/.well-known/**",
+                                "/uploads/signatures/**"
                         ).permitAll()
-                        .requestMatchers("/uploads/signatures/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
