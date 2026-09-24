@@ -3,6 +3,7 @@ package com.hmbrandt.job_management_service.service;
 import com.hmbrandt.job_management_service.dto.ChangeOrderResponseDTO;
 import com.hmbrandt.job_management_service.dto.ChangeOrderUpdateDTO;
 import com.hmbrandt.job_management_service.dto.create.ChangeOrderCreateDto;
+import com.hmbrandt.job_management_service.dto.notification.JobDataDto;
 import com.hmbrandt.job_management_service.entity.ChangeOrder;
 
 import java.util.List;
@@ -12,7 +13,7 @@ public interface ChangeOrderService {
 
     ChangeOrderResponseDTO update(Long id, ChangeOrderUpdateDTO dto);
 
-    ChangeOrderResponseDTO finalizeOrder(Long id);
+    ChangeOrderResponseDTO finalizeOrder(Long id, JobDataDto job);
 
     ChangeOrderResponseDTO approveOrder(Long id);
 

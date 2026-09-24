@@ -29,6 +29,8 @@ target/
 # Docker database volumes
 mysql_data/
 
+docker-compose.yml
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

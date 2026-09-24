@@ -4,6 +4,8 @@ server:
     include-message: always
 
 spring:
+  profiles:
+    active: ${ENV_PROFILE}
   application:
     name: job-management-service
 
@@ -35,6 +37,10 @@ application:
   upload:
     dir: ${UPLOAD_DIR:C:/hmbrandt/uploads/signatures/}
   base-url: ${APP_BASE_URL:http://localhost:8080}
+
+services:
+  notification:
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8088}
 
 logging:
   level:
