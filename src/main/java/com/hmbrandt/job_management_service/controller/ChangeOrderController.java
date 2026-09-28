@@ -2,12 +2,12 @@ package com.hmbrandt.job_management_service.controller;
 
 import com.hmbrandt.job_management_service.dto.ChangeOrderResponseDTO;
 import com.hmbrandt.job_management_service.dto.ChangeOrderUpdateDTO;
-import com.hmbrandt.job_management_service.dto.create.ChangeOrderCreateDto;
+import com.hmbrandt.job_management_service.dto.notification.ChangeOrderRequestDto;
 import com.hmbrandt.job_management_service.dto.notification.JobDataDto;
-import com.hmbrandt.job_management_service.entity.ChangeOrder;
 import com.hmbrandt.job_management_service.service.ChangeOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,8 +24,11 @@ public class ChangeOrderController {
     private final ChangeOrderService service;
 
     @PostMapping
-    public ResponseEntity<ChangeOrderResponseDTO> create(@RequestBody ChangeOrderCreateDto order) {
-        return new ResponseEntity<>(service.save(order), HttpStatus.CREATED);
+    public ResponseEntity<ChangeOrderResponseDTO> create(
+            @Valid @RequestBody ChangeOrderRequestDto request
+    ) {
+        ChangeOrderResponseDTO response = service.save(request.order(), request.job());
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @Operation(summary = "Update change order", description = "Finds an order by ID and updates its fields with the data from the DTO.")

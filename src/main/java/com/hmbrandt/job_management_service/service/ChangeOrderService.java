@@ -9,7 +9,7 @@ import com.hmbrandt.job_management_service.entity.ChangeOrder;
 import java.util.List;
 
 public interface ChangeOrderService {
-    ChangeOrderResponseDTO save(ChangeOrderCreateDto changeOrder);
+    ChangeOrderResponseDTO save(ChangeOrderCreateDto changeOrder, JobDataDto job);
 
     ChangeOrderResponseDTO update(Long id, ChangeOrderUpdateDTO dto);
 
