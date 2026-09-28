@@ -36,7 +36,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
 
     @Override
     @Transactional
-    public ChangeOrderResponseDTO save(ChangeOrderCreateDto dto) {
+    public ChangeOrderResponseDTO save(ChangeOrderCreateDto dto, JobDataDto job) {
         // 1. Obtener el usuario actual para la auditoría interna
         String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -192,6 +192,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         }
 
         ChangeOrder savedOrder = repository.save(changeOrder);
+        createNotification(savedOrder, currentUser, job, "NEW");
         return mapToDto(savedOrder);
     }
 
@@ -214,23 +215,38 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         order.setUpdatedBy(currentUser);
 
         repository.save(order);
-        createNotification(order, currentUser, job);
+        createNotification(order, currentUser, job, "FINALIZED");
 
         return mapToDto(order);
     }
 
-    private void createNotification(ChangeOrder savedReport, String currentUser, JobDataDto job) {
+    private void createNotification(
+            ChangeOrder savedReport,
+            String currentUser,
+            JobDataDto job,
+            String type
+    ) {
         String htmlBody = messageFormat(
                 savedReport,
                 currentUser,
-                job
+                job,
+                type
         );
 
         String recipients = getNotificationRecipients();
 
+        String subject = "No Subject";
+        switch(type){
+
+            case "NEW" -> subject = "New change order created Job #" + job.number();
+            case "FINALIZE" -> subject = "Change Order Finalized Job #" + job.number();
+            default -> subject = "Change Order Updated Job #" + job.number();
+        }
+
+
         notificationClient.sendEmailNotification(
                 recipients,
-                "New change order created Job #" + job.number(),
+                subject,
                 htmlBody
         );
     }
@@ -696,72 +712,95 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         );
     }
 
-    private String messageFormat(ChangeOrder savedReport, String currentUser, JobDataDto job) {
+    private String messageFormat(
+            ChangeOrder savedReport,
+            String currentUser,
+            JobDataDto job,
+            String type
+    ) {
+        // 1. Switch Expression: Directo, limpio e inmutable
+        var notificationContent = switch (type != null ? type : "") {
+            case "NEW" -> new NotificationText(
+                    "New Change Order",
+                    "A new change order report has been generated in the system."
+            );
+            case "FINALIZE" -> new NotificationText(
+                    "Change Order Finalized",
+                    "Change order report has been finalized in the system."
+            );
+            default -> new NotificationText(
+                    "Change Order Updated",
+                    "Change order report has been updated in the system."
+            );
+        };
+
         return String.format("""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                      <meta charset="utf-8">
-                      <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f4f6f8; margin: 0; padding: 20px; }
-                        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; }
-                        .header { background-color: #1e293b; color: #ffffff; padding: 24px; text-align: left; }
-                        .header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-                        .content { padding: 24px; }
-                        .badge { display: inline-block; background-color: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: 12px; margin-bottom: 16px; }
-                        .info-table { width: 100%%; border-collapse: collapse; margin-top: 12px; }
-                        .info-table td { padding: 10px 0; border-bottom: 1px solid #edf2f7; font-size: 14px; }
-                        .info-table td.label { font-weight: 600; color: #64748b; width: 40%%; }
-                        .info-table td.value { color: #0f172a; text-align: right; }
-                        .footer { background-color: #f8fafc; padding: 16px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #edf2f7; }
-                      </style>
-                    </head>
-                    <body>
-                      <div class="container">
-                        <div class="header">
-                          <h2>New Change Order</h2>
-                        </div>
-                        <div class="content">
-                          <span class="badge">Job #%s</span>
-                          <p style="margin-top:0;">A new change order report has been generated in the system.</p>
-                    
-                          <table class="info-table">
-                            <tr>
-                              <td class="label">Report ID</td>
-                              <td class="value">#%d</td>
-                            </tr>
-                            <tr>
-                              <td class="label">Job Number</td>
-                              <td class="value">%s</td>
-                            </tr>
-                            <tr>
-                              <td class="label">Job Name</td>
-                              <td class="value">%s</td>
-                            </tr>
-                            <tr>
-                              <td class="label">Order Date</td>
-                              <td class="value">%s</td>
-                            </tr>
-                            <tr>
-                              <td class="label">Created By</td>
-                              <td class="value">%s</td>
-                            </tr>
-                          </table>
-                        </div>
-                        <div class="footer">
-                          HMBrandt System • Automated Notification
-                        </div>
-                      </div>
-                    </body>
-                    </html>
-                    """,
-                job.number(),          // 1: %s -> Badge
-                savedReport.getId(),   // 2: %d -> Report ID
-                job.number(),          // 3: %s -> Job Number
-                job.name(),            // 4: %s -> Job Name
-                savedReport.getOrderDate(), // 5: %s -> Order Date
-                currentUser            // 6: %s -> Created By
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f4f6f8; margin: 0; padding: 20px; }
+                    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e1e4e8; }
+                    .header { background-color: #1e293b; color: #ffffff; padding: 24px; text-align: left; }
+                    .header h2 { margin: 0; font-size: 20px; font-weight: 600; }
+                    .content { padding: 24px; }
+                    .badge { display: inline-block; background-color: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: 12px; margin-bottom: 16px; }
+                    .info-table { width: 100%%; border-collapse: collapse; margin-top: 12px; }
+                    .info-table td { padding: 10px 0; border-bottom: 1px solid #edf2f7; font-size: 14px; }
+                    .info-table td.label { font-weight: 600; color: #64748b; width: 40%%; }
+                    .info-table td.value { color: #0f172a; text-align: right; }
+                    .footer { background-color: #f8fafc; padding: 16px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #edf2f7; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="header">
+                      <h2>%s</h2>
+                    </div>
+                    <div class="content">
+                      <span class="badge">Job #%s</span>
+                      <p style="margin-top:0;">%s</p>
+                
+                      <table class="info-table">
+                        <tr>
+                          <td class="label">Report ID</td>
+                          <td class="value">#%d</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Job Number</td>
+                          <td class="value">%s</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Job Name</td>
+                          <td class="value">%s</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Order Date</td>
+                          <td class="value">%s</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Created By</td>
+                          <td class="value">%s</td>
+                        </tr>
+                      </table>
+                    </div>
+                    <div class="footer">
+                      HMBrandt System • Automated Notification
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """,
+                notificationContent.title(),   // 1: %s -> Header H2
+                job.number(),                  // 2: %s -> Badge
+                notificationContent.message(), // 3: %s -> Mensaje <p>
+                savedReport.getId(),           // 4: %d -> Report ID
+                job.number(),                  // 5: %s -> Job Number
+                job.name(),                    // 6: %s -> Job Name
+                savedReport.getOrderDate(),   // 7: %s -> Order Date
+                currentUser                    // 8: %s -> Created By
         );
     }
-
+    private record NotificationText(String title, String message) {}
 }
