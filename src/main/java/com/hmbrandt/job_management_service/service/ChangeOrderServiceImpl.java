@@ -239,7 +239,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
         switch(type){
 
             case "NEW" -> subject = "New change order created Job #" + job.number();
-            case "FINALIZE" -> subject = "Change Order Finalized Job #" + job.number();
+            case "FINALIZED" -> subject = "Change Order Finalized Job #" + job.number();
             default -> subject = "Change Order Updated Job #" + job.number();
         }
 
@@ -724,7 +724,7 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
                     "New Change Order",
                     "A new change order report has been generated in the system."
             );
-            case "FINALIZE" -> new NotificationText(
+            case "FINALIZED" -> new NotificationText(
                     "Change Order Finalized",
                     "Change order report has been finalized in the system."
             );
