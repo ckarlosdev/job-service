@@ -44,5 +44,5 @@ services:
 
 logging:
   level:
-    org.springframework.web.servlet.resource: TRACE
-    org.springframework.core.io: TRACE
+    org.springframework.web.servlet.resource: INFO
+    org.springframework.core.io: INFO
