@@ -9,14 +9,14 @@ import java.time.LocalTime;
 import java.util.Set;
 
 public record ScheduleResponse(
-        Long id,
-        @JsonProperty("job_id") Integer jobId,
+        @JsonProperty("jobSchedulesId") Long id,
+        @JsonProperty("jobsId") Integer jobId,
         LocalDate date,
-        @JsonProperty("start_time")
+        @JsonProperty("startTime")
         @Schema(type = "string", format = "time", example = "08:30:00")
         LocalTime startTime,
-        @JsonProperty("schedule_comment") String scheduleComment,
-        @JsonProperty("employee_ids") Set<Integer> employeeIds,
+        @JsonProperty("scheduleComment") String scheduleComment,
+        @JsonProperty("employeeIds") Set<Integer> employeeIds,
         @JsonProperty("created_at") LocalDateTime createdAt,
         @JsonProperty("updated_at") LocalDateTime updatedAt
 ) {

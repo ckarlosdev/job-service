@@ -9,10 +9,10 @@ import java.time.LocalTime;
 public record PatchScheduleRequest (
         LocalDate date, // Opcional si solo se cambia la hora
 
-        @JsonProperty("start_time")
+        @JsonProperty("startTime")
         @Schema(type = "string", format = "time", example = "08:30:00")
         LocalTime startTime, // Opcional
 
-        @JsonProperty("schedule_comment")
+        @JsonProperty("scheduleComment")
         String scheduleComment
 ){}

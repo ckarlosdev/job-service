@@ -7,7 +7,7 @@ import java.util.Set;
 
 public record UpdateEmployeesRequest(
         @NotNull(message = "La lista de employee_ids no puede ser nula")
-        @JsonProperty("employee_ids")
+        @JsonProperty("employeeIds")
         Set<Integer> employeeIds
 ) {
 }

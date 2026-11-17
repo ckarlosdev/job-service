@@ -10,21 +10,21 @@ import java.util.Set;
 
 public record CreateScheduleRequest(
         @NotNull(message = "El job_id es obligatorio")
-        @JsonProperty("job_id")
+        @JsonProperty("jobsId")
         Integer jobId,
 
         @NotNull(message = "La fecha es obligatoria")
         LocalDate date,
 
         @NotNull(message = "La hora de inicio es obligatoria")
-        @JsonProperty("start_time")
+        @JsonProperty("startTime")
         @Schema(type = "string", format = "time", example = "08:30:00")
         LocalTime startTime,
 
-        @JsonProperty("schedule_comment")
+        @JsonProperty("scheduleComment")
         String scheduleComment,
 
-        @JsonProperty("employee_ids")
+        @JsonProperty("employeeIds")
         Set<Integer> employeeIds // Opcional
 ) {
 }
