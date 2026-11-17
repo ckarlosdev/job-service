@@ -9,7 +9,7 @@ public record OrderTaskResponseDto(
         Integer foreman,
         Integer labor,
         Integer other,
-        Integer totalHours,
+        Double totalHours,
         String comments,
         String equipmentComments,
         String toolComments,

@@ -47,7 +47,7 @@ public class OrderTask {
     private Integer other;
 
     @Column(name = "total_hours")
-    private Integer totalHours;
+    private Double totalHours;
 
     @Column(name = "comments", columnDefinition = "TEXT")
     private String comments;
