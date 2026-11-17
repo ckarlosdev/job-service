@@ -8,6 +8,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,8 +47,8 @@ public class OrderTask {
     @Column(name = "other")
     private Integer other;
 
-    @Column(name = "total_hours")
-    private Double totalHours;
+    @Column(name = "total_hours", precision = 10, scale = 2)
+    private BigDecimal totalHours;
 
     @Column(name = "comments", columnDefinition = "TEXT")
     private String comments;

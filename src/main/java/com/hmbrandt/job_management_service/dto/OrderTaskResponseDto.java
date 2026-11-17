@@ -1,5 +1,6 @@
 package com.hmbrandt.job_management_service.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public record OrderTaskResponseDto(
@@ -9,7 +10,7 @@ public record OrderTaskResponseDto(
         Integer foreman,
         Integer labor,
         Integer other,
-        Double totalHours,
+        BigDecimal totalHours,
         String comments,
         String equipmentComments,
         String toolComments,
