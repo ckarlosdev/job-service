@@ -53,7 +53,7 @@ public class JobScheduleController {
             @Valid @RequestBody UpdateEmployeesRequest request
     ) {
         return ResponseEntity.ok(
-                scheduleService.updateEmployees(id, request.employeeIds())
+                scheduleService.updateEmployees(id, request.employeesIds())
         );
     }
 
