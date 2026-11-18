@@ -16,7 +16,7 @@ public record ScheduleResponse(
         @Schema(type = "string", format = "time", example = "08:30:00")
         LocalTime startTime,
         @JsonProperty("scheduleComment") String scheduleComment,
-        @JsonProperty("employeeIds") Set<Integer> employeeIds,
+        @JsonProperty("employeesIds") Set<Integer> employeeIds,
         @JsonProperty("created_at") LocalDateTime createdAt,
         @JsonProperty("updated_at") LocalDateTime updatedAt
 ) {
