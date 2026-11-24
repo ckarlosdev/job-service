@@ -2,6 +2,7 @@ package com.hmbrandt.job_management_service.service;
 
 import com.hmbrandt.job_management_service.dto.ChangeOrderResponseDTO;
 import com.hmbrandt.job_management_service.dto.ChangeOrderUpdateDTO;
+import com.hmbrandt.job_management_service.dto.UpdateOrderNumberRequest;
 import com.hmbrandt.job_management_service.dto.create.ChangeOrderCreateDto;
 import com.hmbrandt.job_management_service.dto.notification.JobDataDto;
 import com.hmbrandt.job_management_service.entity.ChangeOrder;
@@ -24,4 +25,8 @@ public interface ChangeOrderService {
     List<ChangeOrderResponseDTO> findByJobId(Long jobId);
 
     void delete(Long id);
+
+    Integer getNextOrderNumber(Long jobId);
+
+    ChangeOrder updateOrderNumber(Long changeOrderId, UpdateOrderNumberRequest request);
 }

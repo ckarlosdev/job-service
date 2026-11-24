@@ -34,6 +34,23 @@ public class ChangeOrderServiceImpl implements ChangeOrderService {
     private final NotificationClient notificationClient;
     private static final Logger log = LoggerFactory.getLogger(ChangeOrderServiceImpl.class);
 
+    @Transactional(readOnly = true)
+    public Integer getNextOrderNumber(Long jobId) {
+        return repository.findNextOrderNumberByJobId(jobId);
+    }
+
+    @Transactional
+    public ChangeOrder updateOrderNumber(Long changeOrderId, UpdateOrderNumberRequest request) {
+        ChangeOrder changeOrder = repository.findById(changeOrderId)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException(
+                        "ChangeOrder not found with id: " + changeOrderId));
+
+        changeOrder.setOrderNumber(request.orderNumber());
+        // @LastModifiedBy y @LastModifiedDate se actualizan automáticamente vía AuditingEntityListener
+        return repository.save(changeOrder);
+    }
+
+
     @Override
     @Transactional
     public ChangeOrderResponseDTO save(ChangeOrderCreateDto dto, JobDataDto job) {
