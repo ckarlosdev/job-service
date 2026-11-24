@@ -72,6 +72,7 @@ public class JobSchedule {
                     @Index(name = "idx_jse_employee", columnList = "employee_id")
             }
     )
+    @SQLRestriction("deleted_at IS NULL")
     @Column(name = "employee_id", nullable = false)
     @Builder.Default
     private Set<Integer> employeeIds = new HashSet<>();

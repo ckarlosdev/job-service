@@ -3,6 +3,7 @@ package com.hmbrandt.job_management_service.repository.schedule;
 import com.hmbrandt.job_management_service.entity.schedule.JobSchedule;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -45,4 +46,29 @@ public interface JobScheduleRepository extends JpaRepository<JobSchedule, Long> 
 
     // 7. Verificar si un empleado ya tiene algo agendado en cierta fecha (útil para validaciones)
     boolean existsByEmployeeIdsContainingAndScheduledDate(Integer employeeId, LocalDate scheduledDate);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+    UPDATE job_schedule_employees jse
+    INNER JOIN job_schedules js ON jse.job_schedule_id = js.job_schedule_id
+    SET jse.deleted_at = CURRENT_TIMESTAMP
+    WHERE jse.employees_id = :employeesId
+      AND js.scheduled_date = :date
+      AND jse.deleted_at IS NULL
+    """, nativeQuery = true)
+    int softDeleteEmployeeFromSchedulesByDate(
+            @Param("employeesId") Integer employeesId,
+            @Param("date") LocalDate date
+    );
+
+    List<JobSchedule> findByScheduledDateOrderByStartTimeAscIdAsc(LocalDate scheduledDate);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        UPDATE job_schedules
+        SET deleted_at = NOW()
+        WHERE id = :id
+          AND deleted_at IS NULL
+        """, nativeQuery = true)
+    int softDeleteById(@Param("id") Long id);
 }

@@ -5,6 +5,7 @@ import com.hmbrandt.job_management_service.dto.schedule.MoveEmployeeRequest;
 import com.hmbrandt.job_management_service.dto.schedule.PatchScheduleRequest;
 import com.hmbrandt.job_management_service.dto.schedule.ScheduleResponse;
 import com.hmbrandt.job_management_service.entity.schedule.JobSchedule;
+import com.hmbrandt.job_management_service.repository.schedule.JobScheduleEmployeeRepository;
 import com.hmbrandt.job_management_service.repository.schedule.JobScheduleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class JobScheduleService {
     private final JobScheduleRepository repository;
+    private final JobScheduleEmployeeRepository scheduleEmployeeRepository;
 
     // 1. Arrastrar del catálogo a un día
     @Transactional
@@ -64,11 +66,11 @@ public class JobScheduleService {
     // 4. Quitar tarjeta (soltar sobre el catálogo)
     @Transactional
     public void deleteSchedule(Long id) {
-        if (!repository.existsById(id)) {
-            throw new EntityNotFoundException("Schedule no encontrado con id: " + id);
+        int updated = repository.softDeleteById(id);
+        if (updated == 0) {
+            throw new EntityNotFoundException("Schedule not found with ID: " + id);
         }
-        // Elimina automáticamente los registros de job_schedule_employees
-        repository.deleteById(id);
+        scheduleEmployeeRepository.softDeleteByJobScheduleId(id);
     }
 
     // 5. Asignar o quitar empleados (reemplaza el conjunto completo)
@@ -88,7 +90,7 @@ public class JobScheduleService {
     @Transactional
     public List<ScheduleResponse> moveEmployeeBetweenSchedules(MoveEmployeeRequest request) {
         if (request.sourceScheduleId().equals(request.targetScheduleId())) {
-            throw new IllegalArgumentException("La tarjeta de origen y destino no pueden ser la misma");
+            throw new IllegalArgumentException("The source card and the destination card cannot be the same.");
         }
 
         JobSchedule source = findOrThrow(request.sourceScheduleId());
@@ -106,7 +108,7 @@ public class JobScheduleService {
     @Transactional(readOnly = true)
     public List<ScheduleResponse> getSchedulesByDateRange(LocalDate from, LocalDate to) {
         if (from.isAfter(to)) {
-            throw new IllegalArgumentException("La fecha 'from' no puede ser posterior a la fecha 'to'");
+            throw new IllegalArgumentException("The 'from' date cannot be later than the 'to' date.");
         }
 
         return repository
@@ -118,7 +120,7 @@ public class JobScheduleService {
 
     private JobSchedule findOrThrow(Long id) {
         return repository.findWithEmployeesById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Schedule no encontrado con id: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Schedule not found id: " + id));
     }
 
     private ScheduleResponse toResponse(JobSchedule entity) {
