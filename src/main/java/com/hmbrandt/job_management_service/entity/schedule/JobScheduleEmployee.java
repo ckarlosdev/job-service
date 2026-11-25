@@ -2,6 +2,9 @@ package com.hmbrandt.job_management_service.entity.schedule;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -10,6 +13,7 @@ import lombok.*;
                 @Index(name = "idx_jse_employee", columnList = "employee_id")
         }
 )
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,4 +31,7 @@ public class JobScheduleEmployee {
             foreignKey = @ForeignKey(name = "fk_jse_schedule")
     )
     private JobSchedule jobSchedule;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

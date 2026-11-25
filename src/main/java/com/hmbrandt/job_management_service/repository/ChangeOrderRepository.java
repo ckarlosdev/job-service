@@ -2,6 +2,8 @@ package com.hmbrandt.job_management_service.repository;
 
 import com.hmbrandt.job_management_service.entity.ChangeOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -11,4 +13,7 @@ public interface ChangeOrderRepository extends JpaRepository<ChangeOrder, Long> 
     List<ChangeOrder> findByJobId(Long jobId);
 
     List<ChangeOrder> findByEmployeeId(Long employeeId);
+
+    @Query("SELECT COALESCE(MAX(c.orderNumber), 0) + 1 FROM ChangeOrder c WHERE c.jobId = :jobId")
+    Integer findNextOrderNumberByJobId(@Param("jobId") Long jobId);
 }

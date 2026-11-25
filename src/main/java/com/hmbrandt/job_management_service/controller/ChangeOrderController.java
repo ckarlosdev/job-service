@@ -2,8 +2,10 @@ package com.hmbrandt.job_management_service.controller;
 
 import com.hmbrandt.job_management_service.dto.ChangeOrderResponseDTO;
 import com.hmbrandt.job_management_service.dto.ChangeOrderUpdateDTO;
+import com.hmbrandt.job_management_service.dto.UpdateOrderNumberRequest;
 import com.hmbrandt.job_management_service.dto.notification.ChangeOrderRequestDto;
 import com.hmbrandt.job_management_service.dto.notification.JobDataDto;
+import com.hmbrandt.job_management_service.entity.ChangeOrder;
 import com.hmbrandt.job_management_service.service.ChangeOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v2/job-management/change-order")
@@ -75,5 +78,21 @@ public class ChangeOrderController {
     public ResponseEntity<Void> deleteById(@PathVariable Long id){
         service.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/next-order-number")
+    public ResponseEntity<NextOrderNumberResponse> getNextOrderNumber(@RequestParam Long jobId) {
+        Integer nextNumber = service.getNextOrderNumber(jobId);
+        return ResponseEntity.ok(new NextOrderNumberResponse(jobId, nextNumber));
+    }
+
+    public record NextOrderNumberResponse(Long jobId, Integer nextOrderNumber) {}
+
+    @PatchMapping("/{id}/order-number")
+    public ResponseEntity<ChangeOrder> updateOrderNumber(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOrderNumberRequest request) {
+        ChangeOrder updated = service.updateOrderNumber(id, request);
+        return ResponseEntity.ok(updated);
     }
 }
